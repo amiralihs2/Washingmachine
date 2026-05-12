@@ -109,8 +109,20 @@ async def cancel_reservation(reservation_id: str, payload: CancelRequest):
         raise HTTPException(status_code=404, detail="Reservation not found")
     if res["user_name"].lower() != payload.user_name.strip().lower():
         raise HTTPException(status_code=403, detail="You can only cancel your own reservation")
+
+    queue = res.get("queue", [])
+    if queue:
+        # Promote the next user in queue to be the new owner
+        new_owner = queue[0]
+        new_queue = queue[1:]
+        await db.reservations.update_one(
+            {"id": reservation_id},
+            {"$set": {"user_name": new_owner, "queue": new_queue}},
+        )
+        return {"success": True, "promoted": True, "new_owner": new_owner}
+
     await db.reservations.delete_one({"id": reservation_id})
-    return {"success": True}
+    return {"success": True, "promoted": False}
 
 
 @api_router.post("/reservations/{reservation_id}/queue", response_model=Reservation)

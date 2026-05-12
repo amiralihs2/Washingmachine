@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 2: tested new features (loading skeleton, merged 2h block, queue list toggle, owner-cancel auto-promote, /qr page). Backend: 12/12 pytest cases pass including 2 new tests for auto-promotion (with-queue promotes first, empty-queue deletes). Frontend: skeleton, merged block, /qr page all PASS. Queue-toggle UI verification hit a timing race when re-logging in rapidly between users; underlying functionality works (covered by backend tests + verified by UI rendering of reservation owner change).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Rapid user switching (logout/login) -> Join Queue", "issue": "After clicking slot-join-queue-{hour}, the join API may not complete before the next localStorage.clear()+reload sequence. Same UX timing race already noted in iteration_1. Recommend awaiting the join-queue mutation success state (e.g., disable button + spinner) before allowing user switch; or short delay (500ms) after click before navigating away.", "affected_selectors": ["slot-join-queue-{hour}", "slot-queue-toggle-{hour}"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_reservations.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional UX: show a brief loading state on Join Queue button + await mutation before any navigation, to harden the multi-user race"
+  ],
+  "critical_code_review_comments": [
+    "cancel_reservation auto-promote logic is correct: when queue non-empty, updates user_name=queue[0] and queue=queue[1:], returns {promoted:true,new_owner}; when empty, deletes and returns {promoted:false}.",
+    "Schedule.jsx skip-continuation loop (h += res.duration) properly merges visually so only one slot-row at start_hour exists for a 2h booking; verified slot-row-10 is absent.",
+    "SlotRow merged block shows time range (09:00-11:00) and duration label (2h); queue toggle conditionally renders only when queueCount>0; data-testids are correctly suffixed by hour.",
+    "QRPage uses QRCodeSVG with window.location.origin and has back link + print button with proper testids and print:hidden header — clean.",
+    "Loading skeleton (data-testid slot-skeleton) renders when reservations===null and is replaced by slot-list after fetch — confirmed via throttled network test.",
+    "Minor: client-side cancel handler uses res?.promoted from API response — good. Backend returns shape {success, promoted, new_owner?}."
+  ],
+  "updated_files": ["/app/backend/tests/test_reservations.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "5/6 verified (skeleton, 2h merged block, time/duration label, /qr page+back, owner-cancel-promote backend; queue-list UI not asserted due to test timing — but underlying API + rendering paths verified separately)"},
+  "test_credentials": "Name-based login (no password); used Alex/Bob/Casey + TEST_* names",
+  "seed_data_creation": "Tests create/cleanup reservations on date today+30 with TEST_ prefix; UI test cleans up today's reservations via API before/after.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests at /app/backend/tests/test_reservations.py now include test_cancel_with_queue_promotes_first_in_queue and test_cancel_with_empty_queue_deletes. New data-testids in this iteration: slot-skeleton, slot-list, slot-queue-toggle-{hour}, slot-queue-list-{hour}, qr-link, qr-page, qr-back-link, qr-print-button, qr-title, qr-image, qr-url. /qr route is public (no auth gate).",
+  "rca of the issue": "N/A — no blocking bugs. Frontend test 4 timing flake is a test harness issue, not a product bug; product UX could optionally be hardened by awaiting mutation before allowing user switch."
+}

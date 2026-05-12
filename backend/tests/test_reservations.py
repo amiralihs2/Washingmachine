@@ -124,3 +124,57 @@ def test_queue_join_owner_rejected_and_duplicate_409():
     lv = requests.delete(f"{API}/reservations/{rid}/queue", json={"user_name": "TEST_Joiner"})
     assert lv.status_code == 200
     assert "TEST_Joiner" not in lv.json()["queue"]
+
+
+def test_cancel_with_queue_promotes_first_in_queue():
+    """When owner cancels and queue is non-empty, first queue user becomes new owner."""
+    # create reservation
+    payload = {"user_name": "TEST_Owner2", "date": TEST_DATE, "start_hour": 6, "duration": 1}
+    r = requests.post(f"{API}/reservations", json=payload)
+    assert r.status_code == 200, r.text
+    rid = r.json()["id"]
+    # add two queue users
+    j1 = requests.post(f"{API}/reservations/{rid}/queue", json={"user_name": "TEST_Q1"})
+    assert j1.status_code == 200
+    j2 = requests.post(f"{API}/reservations/{rid}/queue", json={"user_name": "TEST_Q2"})
+    assert j2.status_code == 200
+    assert j2.json()["queue"] == ["TEST_Q1", "TEST_Q2"]
+    # owner cancels -> should promote TEST_Q1
+    c = requests.delete(f"{API}/reservations/{rid}", json={"user_name": "TEST_Owner2"})
+    assert c.status_code == 200, c.text
+    body = c.json()
+    assert body.get("promoted") is True
+    assert body.get("new_owner") == "TEST_Q1"
+    # verify via GET: same reservation exists, owner switched, queue shifted
+    g = requests.get(f"{API}/reservations", params={"start_date": TEST_DATE, "end_date": TEST_DATE})
+    found = [x for x in g.json() if x["id"] == rid]
+    assert len(found) == 1, "Reservation should still exist after promotion"
+    assert found[0]["user_name"] == "TEST_Q1"
+    assert found[0]["queue"] == ["TEST_Q2"]
+    assert found[0]["start_hour"] == 6
+    assert found[0]["duration"] == 1
+    # cleanup: TEST_Q1 cancels now (queue still has Q2 -> would promote)
+    c2 = requests.delete(f"{API}/reservations/{rid}", json={"user_name": "TEST_Q1"})
+    assert c2.status_code == 200
+    assert c2.json().get("promoted") is True
+    assert c2.json().get("new_owner") == "TEST_Q2"
+    # final cancel by Q2 (queue empty -> deletes)
+    c3 = requests.delete(f"{API}/reservations/{rid}", json={"user_name": "TEST_Q2"})
+    assert c3.status_code == 200
+    assert c3.json().get("promoted") is False
+    g2 = requests.get(f"{API}/reservations", params={"start_date": TEST_DATE, "end_date": TEST_DATE})
+    assert rid not in [x["id"] for x in g2.json()]
+
+
+def test_cancel_with_empty_queue_deletes():
+    """Existing behavior: empty queue -> full delete, promoted: false."""
+    payload = {"user_name": "TEST_SoloOwner", "date": TEST_DATE, "start_hour": 4, "duration": 1}
+    r = requests.post(f"{API}/reservations", json=payload)
+    assert r.status_code == 200
+    rid = r.json()["id"]
+    c = requests.delete(f"{API}/reservations/{rid}", json={"user_name": "TEST_SoloOwner"})
+    assert c.status_code == 200
+    body = c.json()
+    assert body.get("promoted") is False
+    g = requests.get(f"{API}/reservations", params={"start_date": TEST_DATE, "end_date": TEST_DATE})
+    assert rid not in [x["id"] for x in g.json()]

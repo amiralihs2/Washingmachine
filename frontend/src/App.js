@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import Login from "@/pages/Login";
 import Schedule from "@/pages/Schedule";
+import QRPage from "@/pages/QRPage";
 import { Toaster } from "sonner";
 
 const Gate = () => {
@@ -20,6 +21,7 @@ function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Gate />} />
+              <Route path="/qr" element={<QRPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>

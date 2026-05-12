@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import Header from "../components/Header";
 import DaySelector from "../components/DaySelector";
 import SlotRow from "../components/SlotRow";
@@ -13,27 +14,25 @@ import {
   leaveQueue,
 } from "../lib/api";
 import { toast } from "sonner";
+import { QrCode } from "lucide-react";
 
 export default function Schedule() {
   const { userName } = useAuth();
   const [selectedDate, setSelectedDate] = useState(toISODate(startOfToday()));
-  const [reservations, setReservations] = useState([]);
+  const [reservations, setReservations] = useState(null);
   const [bookingHour, setBookingHour] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   const weekDays = useMemo(() => getWeekDays(), []);
   const startDate = toISODate(weekDays[0]);
   const endDate = toISODate(weekDays[weekDays.length - 1]);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await listReservations(startDate, endDate);
       setReservations(data);
     } catch (e) {
       toast.error("Failed to load reservations");
-    } finally {
-      setLoading(false);
+      setReservations([]);
     }
   }, [startDate, endDate]);
 
@@ -41,9 +40,10 @@ export default function Schedule() {
     fetchData();
   }, [fetchData]);
 
-  const daySlotMap = useMemo(() => {
+  // Map hour -> reservation (covers all occupied hours)
+  const occupiedMap = useMemo(() => {
     const map = {};
-    reservations
+    (reservations || [])
       .filter((r) => r.date === selectedDate)
       .forEach((r) => {
         for (let i = 0; i < r.duration; i++) {
@@ -72,8 +72,12 @@ export default function Schedule() {
 
   const handleCancel = async (reservation) => {
     try {
-      await cancelReservation(reservation.id, userName);
-      toast.success("Reservation cancelled");
+      const res = await cancelReservation(reservation.id, userName);
+      if (res?.promoted) {
+        toast.success(`Cancelled — passed to ${res.new_owner} (next in queue)`);
+      } else {
+        toast.success("Reservation cancelled");
+      }
       await fetchData();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Cancel failed");
@@ -100,12 +104,13 @@ export default function Schedule() {
     }
   };
 
-  const canBook2h = bookingHour !== null && bookingHour < 23 && !daySlotMap[bookingHour + 1];
+  const canBook2h = bookingHour !== null && bookingHour < 23 && !occupiedMap[bookingHour + 1];
 
-  // Stats
-  const dayReservations = reservations.filter((r) => r.date === selectedDate);
-  const occupiedCount = Object.keys(daySlotMap).length;
+  // Counters
+  const occupiedCount = Object.keys(occupiedMap).length;
   const availableCount = 24 - occupiedCount;
+
+  const loading = reservations === null;
 
   return (
     <div className="min-h-screen bg-background text-foreground" data-testid="schedule-page">
@@ -117,42 +122,83 @@ export default function Schedule() {
           <div className="border-2 border-foreground p-3 bg-emerald-500 text-black">
             <div className="font-mono text-[10px] uppercase tracking-[0.2em]">Available</div>
             <div className="font-display text-3xl leading-none mt-1" data-testid="stats-available">
-              {availableCount}
+              {loading ? "--" : availableCount}
             </div>
           </div>
           <div className="border-2 border-foreground p-3 bg-rose-500 text-white">
             <div className="font-mono text-[10px] uppercase tracking-[0.2em]">Booked</div>
             <div className="font-display text-3xl leading-none mt-1" data-testid="stats-booked">
-              {occupiedCount}
+              {loading ? "--" : occupiedCount}
             </div>
           </div>
         </div>
 
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-mono text-xs uppercase tracking-[0.2em]">Time slots · 24h</h2>
-          {loading && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              Loading…
-            </span>
-          )}
+          <Link
+            to="/qr"
+            data-testid="qr-link"
+            className="font-mono text-[10px] uppercase tracking-[0.2em] border-2 border-foreground px-2 py-1 hover:-translate-y-0.5 transition-transform flex items-center gap-1"
+          >
+            <QrCode size={12} /> QR
+          </Link>
         </div>
 
-        <div className="space-y-0" data-testid="slot-list">
-          {Array.from({ length: 24 }, (_, h) => (
-            <SlotRow
-              key={h}
-              hour={h}
-              reservation={daySlotMap[h]}
-              currentUser={userName}
-              onBook={(hour) => setBookingHour(hour)}
-              onCancel={handleCancel}
-              onQueue={handleJoinQueue}
-              onLeaveQueue={handleLeaveQueue}
-            />
-          ))}
-        </div>
+        {loading ? (
+          <div className="space-y-0" data-testid="slot-skeleton">
+            {Array.from({ length: 12 }, (_, i) => (
+              <div key={i} className="grid grid-cols-[64px_1fr] gap-3 items-stretch py-1.5">
+                <div className="self-center h-4 w-12 bg-muted animate-pulse" />
+                <div className="h-12 bg-muted animate-pulse border-2 border-foreground/10" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-0" data-testid="slot-list">
+            {(() => {
+              const rows = [];
+              let h = 0;
+              while (h < 24) {
+                const res = occupiedMap[h];
+                if (res && res.start_hour === h) {
+                  rows.push(
+                    <SlotRow
+                      key={h}
+                      hour={h}
+                      reservation={res}
+                      currentUser={userName}
+                      onBook={() => {}}
+                      onCancel={handleCancel}
+                      onQueue={handleJoinQueue}
+                      onLeaveQueue={handleLeaveQueue}
+                    />
+                  );
+                  h += res.duration; // skip continuation hours
+                } else if (res) {
+                  // continuation of a reservation we've already rendered — skip
+                  h += 1;
+                } else {
+                  rows.push(
+                    <SlotRow
+                      key={h}
+                      hour={h}
+                      reservation={null}
+                      currentUser={userName}
+                      onBook={(hour) => setBookingHour(hour)}
+                      onCancel={() => {}}
+                      onQueue={() => {}}
+                      onLeaveQueue={() => {}}
+                    />
+                  );
+                  h += 1;
+                }
+              }
+              return rows;
+            })()}
+          </div>
+        )}
 
-        {dayReservations.length === 0 && (
+        {!loading && occupiedCount === 0 && (
           <p className="text-center font-mono text-xs text-muted-foreground mt-6 uppercase tracking-[0.2em]">
             ★ all clear · machine is free all day
           </p>

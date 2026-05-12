@@ -1,12 +1,12 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
 
@@ -14,59 +14,136 @@ from datetime import datetime, timezone
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
+# ============ Models ============
+
+class Reservation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user_name: str
+    date: str  # ISO date YYYY-MM-DD
+    start_hour: int  # 0-23
+    duration: int  # 1 or 2
+    queue: List[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
+class ReservationCreate(BaseModel):
+    user_name: str
+    date: str
+    start_hour: int
+    duration: int
+
+
+class CancelRequest(BaseModel):
+    user_name: str
+
+
+class QueueRequest(BaseModel):
+    user_name: str
+
+
+# ============ Helpers ============
+
+def reservation_slots(start_hour: int, duration: int) -> List[int]:
+    return [(start_hour + i) % 24 for i in range(duration)]
+
+
+# ============ Routes ============
+
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "WashSlot API"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+@api_router.get("/reservations", response_model=List[Reservation])
+async def list_reservations(start_date: str, end_date: str):
+    """Get all reservations between start_date and end_date (inclusive)."""
+    cursor = db.reservations.find(
+        {"date": {"$gte": start_date, "$lte": end_date}},
+        {"_id": 0}
+    )
+    return await cursor.to_list(1000)
 
-# Include the router in the main app
+
+@api_router.post("/reservations", response_model=Reservation)
+async def create_reservation(payload: ReservationCreate):
+    if payload.duration not in (1, 2):
+        raise HTTPException(status_code=400, detail="Duration must be 1 or 2 hours")
+    if not (0 <= payload.start_hour <= 23):
+        raise HTTPException(status_code=400, detail="start_hour must be between 0 and 23")
+    if payload.duration == 2 and payload.start_hour == 23:
+        raise HTTPException(status_code=400, detail="A 2h slot cannot start at 23:00")
+    if not payload.user_name.strip():
+        raise HTTPException(status_code=400, detail="user_name is required")
+
+    requested_hours = set(reservation_slots(payload.start_hour, payload.duration))
+
+    # check overlap on same date
+    existing = await db.reservations.find({"date": payload.date}, {"_id": 0}).to_list(1000)
+    for r in existing:
+        occupied = set(reservation_slots(r["start_hour"], r["duration"]))
+        if requested_hours & occupied:
+            raise HTTPException(status_code=409, detail="Slot already booked")
+
+    res = Reservation(
+        user_name=payload.user_name.strip(),
+        date=payload.date,
+        start_hour=payload.start_hour,
+        duration=payload.duration,
+    )
+    await db.reservations.insert_one(res.model_dump())
+    return res
+
+
+@api_router.delete("/reservations/{reservation_id}")
+async def cancel_reservation(reservation_id: str, payload: CancelRequest):
+    res = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not res:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    if res["user_name"].lower() != payload.user_name.strip().lower():
+        raise HTTPException(status_code=403, detail="You can only cancel your own reservation")
+    await db.reservations.delete_one({"id": reservation_id})
+    return {"success": True}
+
+
+@api_router.post("/reservations/{reservation_id}/queue", response_model=Reservation)
+async def join_queue(reservation_id: str, payload: QueueRequest):
+    name = payload.user_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="user_name is required")
+    res = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not res:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    if res["user_name"].lower() == name.lower():
+        raise HTTPException(status_code=400, detail="You already own this slot")
+    queue = res.get("queue", [])
+    if any(q.lower() == name.lower() for q in queue):
+        raise HTTPException(status_code=409, detail="You are already in the queue")
+    queue.append(name)
+    await db.reservations.update_one({"id": reservation_id}, {"$set": {"queue": queue}})
+    res["queue"] = queue
+    return res
+
+
+@api_router.delete("/reservations/{reservation_id}/queue", response_model=Reservation)
+async def leave_queue(reservation_id: str, payload: QueueRequest):
+    name = payload.user_name.strip()
+    res = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not res:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    queue = [q for q in res.get("queue", []) if q.lower() != name.lower()]
+    await db.reservations.update_one({"id": reservation_id}, {"$set": {"queue": queue}})
+    res["queue"] = queue
+    return res
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -77,12 +154,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

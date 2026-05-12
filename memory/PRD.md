@@ -53,8 +53,9 @@ Build a simple, mobile-friendly web app called WashSlot for a shared dorm washin
 
 ### P2
 - ~~15-min-before-end in-app reminder toast~~ ✓ (added 2026-02-13)
+- ~~Machine state indicator banner (🟢 / 🟡 / 🔴) at top of schedule~~ ✓ (added 2026-02-13)
 - Admin view (history, weekly stats per user)
-- Input length / sanitization on login
+- Input length / sanitization on login (low priority — purely cosmetic)
 - Optional: harden Join Queue with pending state (avoid rapid-switch race)
 
 ## Tech Stack

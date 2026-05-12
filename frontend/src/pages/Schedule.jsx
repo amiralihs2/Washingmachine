@@ -4,6 +4,7 @@ import Header from "../components/Header";
 import DaySelector from "../components/DaySelector";
 import SlotRow from "../components/SlotRow";
 import BookingModal from "../components/BookingModal";
+import MachineState from "../components/MachineState";
 import { useAuth } from "../context/AuthContext";
 import { startOfToday, toISODate, getWeekDays } from "../lib/dates";
 import {
@@ -155,6 +156,8 @@ export default function Schedule() {
       <DaySelector selected={selectedDate} onSelect={setSelectedDate} />
 
       <div className="max-w-md mx-auto px-4 py-4">
+        <MachineState reservations={reservations} />
+
         <div className="grid grid-cols-2 gap-2 mb-4" data-testid="stats-row">
           <div className="border-2 border-foreground p-3 bg-emerald-500 text-black">
             <div className="font-mono text-[10px] uppercase tracking-[0.2em]">Available</div>

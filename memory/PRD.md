@@ -52,7 +52,7 @@ Build a simple, mobile-friendly web app called WashSlot for a shared dorm washin
 - ~~Queue list visible + auto-promote first-in-queue on cancel~~ ✓
 
 ### P2
-- 15-min-before-end in-app reminder (toast when slot is open and 15min from end)
+- ~~15-min-before-end in-app reminder toast~~ ✓ (added 2026-02-13)
 - Admin view (history, weekly stats per user)
 - Input length / sanitization on login
 - Optional: harden Join Queue with pending state (avoid rapid-switch race)

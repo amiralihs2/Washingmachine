@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import Header from "../components/Header";
 import DaySelector from "../components/DaySelector";
@@ -14,13 +14,14 @@ import {
   leaveQueue,
 } from "../lib/api";
 import { toast } from "sonner";
-import { QrCode } from "lucide-react";
+import { QrCode, Bell } from "lucide-react";
 
 export default function Schedule() {
   const { userName } = useAuth();
   const [selectedDate, setSelectedDate] = useState(toISODate(startOfToday()));
   const [reservations, setReservations] = useState(null);
   const [bookingHour, setBookingHour] = useState(null);
+  const notifiedRef = useRef(new Set());
 
   const weekDays = useMemo(() => getWeekDays(), []);
   const startDate = toISODate(weekDays[0]);
@@ -39,6 +40,42 @@ export default function Schedule() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Refresh data periodically so multiple users see live updates
+  useEffect(() => {
+    const id = setInterval(fetchData, 30000);
+    return () => clearInterval(id);
+  }, [fetchData]);
+
+  // 15-min-before-end reminder toast for the current user's reservations
+  useEffect(() => {
+    if (!reservations || !userName) return;
+
+    const check = () => {
+      const now = new Date();
+      reservations
+        .filter((r) => r.user_name.toLowerCase() === userName.toLowerCase())
+        .forEach((r) => {
+          if (notifiedRef.current.has(r.id)) return;
+          const [y, m, d] = r.date.split("-").map(Number);
+          const endHour = r.start_hour + r.duration;
+          const endTime = new Date(y, m - 1, d, endHour, 0, 0, 0);
+          const minutesLeft = (endTime.getTime() - now.getTime()) / 60000;
+          if (minutesLeft > 0 && minutesLeft <= 15) {
+            notifiedRef.current.add(r.id);
+            toast(`★ Heads up — your slot ends in ${Math.max(1, Math.round(minutesLeft))} min`, {
+              description: `${r.date} · ends at ${String(endHour).padStart(2, "0")}:00`,
+              duration: 8000,
+              icon: <Bell size={16} />,
+            });
+          }
+        });
+    };
+
+    check();
+    const id = setInterval(check, 30000);
+    return () => clearInterval(id);
+  }, [reservations, userName]);
 
   // Map hour -> reservation (covers all occupied hours)
   const occupiedMap = useMemo(() => {

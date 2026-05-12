@@ -1,0 +1,114 @@
+{
+  "project_name": "WashSlot",
+  "theme": "Light & Dark Mode (User Toggle)",
+  "archetype": "Archetype 4 (Swiss & High-Contrast) mixed with Industrial Control Panel Neo-Brutalism",
+  "rationale": "A dorm washing machine app needs to be highly utilitarian, urgently clear, and free from corporate SaaS fluff. A high-contrast 'Industrial Control Panel' style with brutalist roots elevates the strict 'Green=Available, Red=Booked' requirement into a deliberate design choice rather than an afterthought. It speaks to Gen Z dorm residents through its stark, anti-design aesthetic.",
+  "colors": {
+    "light": {
+      "background": "#F4F4F0",
+      "surface": "#FFFFFF",
+      "text": "#111111",
+      "border": "#111111",
+      "primary": "#111111",
+      "primary_text": "#F4F4F0",
+      "available": "#10B981",
+      "available_text": "#000000",
+      "booked": "#F43F5E",
+      "booked_text": "#FFFFFF",
+      "highlight": "#FACC15",
+      "neo_shadow": "#000000"
+    },
+    "dark": {
+      "background": "#0A0A0A",
+      "surface": "#171717",
+      "text": "#F4F4F0",
+      "border": "#333333",
+      "primary": "#F4F4F0",
+      "primary_text": "#0A0A0A",
+      "available": "#10B981",
+      "available_text": "#000000",
+      "booked": "#E11D48",
+      "booked_text": "#FFFFFF",
+      "highlight": "#FACC15",
+      "neo_shadow": "#10B981"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Cabinet Grotesk, sans-serif",
+      "body": "Chivo, sans-serif",
+      "mono": "IBM Plex Mono, monospace"
+    },
+    "rules": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tighter uppercase",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-bold uppercase tracking-widest",
+      "body": "text-base leading-relaxed",
+      "labels": "text-xs font-mono uppercase tracking-[0.2em]",
+      "timestamps": "text-lg font-mono font-bold"
+    }
+  },
+  "layout_and_spacing": {
+    "container": "w-full max-w-md mx-auto min-h-screen border-x-0 sm:border-x-2 border-border bg-background relative",
+    "spacing_scale": "Generous inner padding (p-4 to p-6) but tight margins between related functional blocks to mimic a dashboard.",
+    "borders": "Sharp corners (rounded-none or max rounded-sm). 2px thick solid borders in light mode for the brutalist effect, 1px subtle borders in dark mode.",
+    "shadows": "Neo-Brutalist hard shadows: shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] (Light) or shadow-[2px_2px_0px_0px_rgba(244,244,240,0.2)] (Dark). No blurry soft dropshadows."
+  },
+  "components": {
+    "header": {
+      "style": "sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b-2 border-border p-4 flex justify-between items-center",
+      "elements": "Brand logo (Text H3), User Profile Indicator, Light/Dark Toggle icon button."
+    },
+    "day_selector": {
+      "style": "flex overflow-x-auto gap-2 p-4 border-b-2 border-border hide-scrollbar",
+      "item_active": "bg-primary text-primary-text border-2 border-primary px-4 py-2 font-bold",
+      "item_inactive": "bg-transparent text-text border-2 border-border px-4 py-2 font-mono text-sm hover:bg-surface transition-colors"
+    },
+    "time_slot": {
+      "container": "grid grid-cols-[80px_1fr] gap-4 p-4 border-b border-border/50 items-center",
+      "timestamp": "font-mono text-lg text-text/80",
+      "available_card": "flex justify-between items-center bg-green-500 text-black p-4 border-2 border-transparent transition-transform hover:-translate-y-1 cursor-pointer active:translate-y-0",
+      "booked_card": "flex justify-between items-center bg-red-500 text-white p-4 border-2 border-transparent",
+      "booked_by_me_card": "flex justify-between items-center bg-red-900 text-white p-4 border-2 border-red-500"
+    },
+    "buttons": {
+      "primary": "w-full bg-primary text-primary-text font-bold uppercase tracking-wider py-4 border-2 border-transparent hover:-translate-y-1 transition-transform",
+      "secondary": "w-full bg-surface text-text font-bold uppercase tracking-wider py-4 border-2 border-border hover:bg-border/10",
+      "cancel": "bg-transparent border-2 border-white text-white px-3 py-1 text-sm font-bold uppercase hover:bg-white hover:text-red-900",
+      "queue": "bg-white text-red-600 px-3 py-1 text-sm font-bold uppercase hover:bg-gray-100"
+    },
+    "modals": {
+      "overlay": "fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4",
+      "content": "w-full max-w-sm bg-background border-2 border-border p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] (or dark equivalent) animate-in slide-in-from-bottom-4"
+    },
+    "forms": {
+      "input": "w-full bg-surface border-2 border-border p-4 font-mono text-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent placeholder:text-text/40 rounded-none"
+    }
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "usage": "Use bold/duotone weights. Icons should feel mechanical and purposeful (e.g., Arrows, Clocks, Sun/Moon, User). No decorative fluff."
+  },
+  "animation_and_interactions": {
+    "hover": "Hard translates (e.g., hover:-translate-y-1 hover:translate-x-1) with sharp shadows to emphasize physicality.",
+    "focus": "High contrast 2px ring outline.",
+    "transitions": "Fast, mechanical duration (150ms). Avoid slow, elastic easing.",
+    "toast": "Use Sonner library with custom unstyled mode to match the sharp-edged, high-contrast brutalist design."
+  },
+  "testing_attributes": {
+    "rule": "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., data-testid='slot-0900-book', data-testid='login-submit-button')."
+  },
+  "instructions_to_main_agent": [
+    "1. Setup Tailwind using the colors and typography described above. Override Shadcn's default soft radius by setting --radius to 0px in globals.css.",
+    "2. Implement a simple mobile-first layout. The entire app should ideally render inside a max-w-md container centered on desktop to emulate a mobile app.",
+    "3. Build the Login View: A simple screen with a massive WASHSLOT header, a text input for the name, and a brutalist enter button.",
+    "4. Build the Timetable View: Sticky header with user details and theme toggle. A horizontal scroll for Days (Mon-Sun). A vertical list for 24 time slots.",
+    "5. Slot States: Ensure clear visual distinction between Available (Green) and Booked (Red). Use Tailwind's emerald-500 and red-500.",
+    "6. Booking Flow: Clicking an available slot opens a bottom-sheet or modal asking for 1h or 2h duration. Confirming books it.",
+    "7. Queue/Waitlist: If a slot is booked by someone else, show a 'Join Queue' button inside the slot block.",
+    "8. Cancel: If a slot is booked by the current user, show a 'Cancel' button.",
+    "9. Use Lucide or Phosphor icons, but sparingly. The design should rely heavily on typography and color blocks.",
+    "10. Ensure the theme toggle actually switches Tailwind's 'dark' class on the document root.",
+    "11. State management should be robust (likely React context or simple hooks passing to FastAPI backend). Do not use mock states if backend is available."
+  ]
+}

@@ -31,27 +31,31 @@ Build a simple, mobile-friendly web app called WashSlot for a shared dorm washin
 - **Backend** (`/app/backend/server.py`)
   - `GET /api/reservations?start_date=&end_date=` — list within range
   - `POST /api/reservations` — create with conflict check (1h vs 2h overlap handled)
-  - `DELETE /api/reservations/{id}` — owner-only cancel
+  - `DELETE /api/reservations/{id}` — owner-only cancel; **auto-promotes first user in queue to new owner** (returns `{promoted, new_owner}`)
   - `POST /api/reservations/{id}/queue` — join waitlist (rejects owner & duplicates)
   - `DELETE /api/reservations/{id}/queue` — leave waitlist
   - All responses exclude Mongo `_id`
 - **Frontend** (`/app/frontend/src/`)
   - Brutalist / High-contrast Swiss design (Archivo Black + IBM Plex Mono + Chivo)
   - Login (name-only), Schedule (day selector + 24 slot rows), Booking modal (1h/2h), Cancel, Queue join/leave, Theme toggle, Logout
+  - **Loading skeleton** on cold-start
+  - **Merged booked blocks**: 2h booking renders as one block (e.g. `09:00–11:00 · 2h`) instead of two duplicate rows
+  - **Visible queue list** with expandable toggle inside each booked block
+  - **QR landing page** at `/qr` with printable QR code (qrcode.react), back & print buttons
   - localStorage for `washslot.user` and `washslot.theme`
-- **Tests**: 10/10 backend pytest tests passing; frontend critical flows verified by testing agent.
+- **Tests**: 12/12 backend pytest tests passing; frontend critical flows verified by testing agent.
 
 ## Backlog
-### P1
-- Loading skeleton on slot grid (cold-start UX)
-- Show queue list and notify next-in-line when a slot is cancelled
-- Display reservation end-time visually (combine consecutive hours into one block)
+### P1 (done in iteration 2 ✓)
+- ~~Loading skeleton on slot grid~~ ✓
+- ~~Merge consecutive booked hours into one block~~ ✓
+- ~~Queue list visible + auto-promote first-in-queue on cancel~~ ✓
 
 ### P2
-- 15-min-before-end browser notification (Notification API)
-- QR code landing page for the washing machine
+- 15-min-before-end in-app reminder (toast when slot is open and 15min from end)
 - Admin view (history, weekly stats per user)
 - Input length / sanitization on login
+- Optional: harden Join Queue with pending state (avoid rapid-switch race)
 
 ## Tech Stack
 - Backend: FastAPI, Motor (Mongo async), Pydantic v2

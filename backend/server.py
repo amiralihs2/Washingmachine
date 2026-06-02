@@ -57,7 +57,7 @@ def reservation_slots(start_hour: int, duration: int) -> List[int]:
 
 # ============ Routes ============
 
-@api_router.get("/")
+@api_router.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {"message": "WashSlot API"}
 
